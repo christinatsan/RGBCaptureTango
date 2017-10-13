@@ -11,8 +11,11 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
+import android.content.ContentValues;
+import java.util.concurrent.TimeUnit;
 
 import com.google.atap.tangoservice.Tango;
+import com.google.atap.tangoservice.Tango.OnTangoUpdateListener;
 import com.google.atap.tangoservice.TangoCameraIntrinsics;
 import com.google.atap.tangoservice.TangoConfig;
 import com.google.atap.tangoservice.TangoCoordinateFramePair;
@@ -23,6 +26,7 @@ import com.google.atap.tangoservice.TangoOutOfDateException;
 import com.google.atap.tangoservice.TangoPointCloudData;
 import com.google.atap.tangoservice.TangoPoseData;
 import com.google.atap.tangoservice.TangoXyzIjData;
+
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,15 +47,41 @@ public class MainActivity extends Activity
    public void onCreate(Bundle savedInstanceState) {
       super.onCreate(savedInstanceState);
 
-      // Request depth in the Tango config because otherwise frames
-      // are not delivered.
-      tango_ = new Tango(this);
-      tangoConfig_ = tango_.getConfig(TangoConfig.CONFIG_TYPE_DEFAULT);
-      tangoConfig_.putBoolean(TangoConfig.KEY_BOOLEAN_COLORCAMERA, true);
       cameraTextures_ = new HashMap<>();
 
+      // Request depth in the Tango config because otherwise frames
+      // are not delivered.
+      tango_ = new Tango(this, new Runnable(){
+         @Override
+         public void run(){
+            synchronized (this) {
+               try {
+                  tangoConfig_ = tango_.getConfig(TangoConfig.CONFIG_TYPE_DEFAULT);
+                  tangoConfig_.putBoolean(TangoConfig.KEY_BOOLEAN_COLORCAMERA, true);
+                  tango_.connect(tangoConfig_);
+                  startTango();
+                  //cameraTextures_ = new HashMap<>();
+
+               } catch (TangoOutOfDateException e) {
+                  Log.i("new Tango", "error in onCreate");
+               }
+            }
+         }
+      });
+
+      try {
+         TimeUnit.SECONDS.sleep(1);
+      } catch (InterruptedException e) {
+         e.printStackTrace();
+      }
+
+      /*tangoConfig_ = tango_.getConfig(TangoConfig.CONFIG_TYPE_DEFAULT);
+      tangoConfig_.putBoolean(TangoConfig.KEY_BOOLEAN_COLORMODEAUTO, true);*/
+
+
       // Make full screen.
-      this.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+      MainActivity.this.requestWindowFeature(Window.FEATURE_NO_TITLE);
       getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                            WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
@@ -59,15 +89,27 @@ public class MainActivity extends Activity
       view_ = new GLSurfaceView(this);
       view_.setEGLContextClientVersion(2);
       view_.setDebugFlags(GLSurfaceView.DEBUG_CHECK_GL_ERROR);
-      view_.setRenderer(renderer_ = new Renderer(this));
+      view_.setRenderer(renderer_ = new Renderer(MainActivity.this));
       view_.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
       view_.setOnClickListener(this);
       setContentView(view_);
+
    }
+
+ /*  @Override
+   public void onStart(){
+      super.onStart();
+
+      tango_ = new Tango(MainActivity.this);
+      tangoConfig_ = tango_.getConfig(TangoConfig.CONFIG_TYPE_DEFAULT);
+      tangoConfig_.putBoolean(TangoConfig.KEY_BOOLEAN_COLORMODEAUTO, true);
+
+   } */
 
    @Override
    protected void onResume() {
       super.onResume();
+      //startTango();
       if (!tangoConnected_) {
          startActivityForResult(
             Tango.getRequestPermissionIntent(Tango.PERMISSIONTYPE_MOTION_TRACKING),
@@ -81,7 +123,7 @@ public class MainActivity extends Activity
       stopTango();
    }
 
-   @Override
+  /* @Override
    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
       // Check which request we're responding to
       if (requestCode == Tango.TANGO_INTENT_ACTIVITYCODE) {
@@ -95,9 +137,9 @@ public class MainActivity extends Activity
             return;
          }
 
-         startTango();
+         //startTango();
       }
-   }
+   }*/
 
    public synchronized void attachTexture(final int cameraId, final int textureName) {
       if (textureName > 0) {
@@ -105,6 +147,7 @@ public class MainActivity extends Activity
          // Tango is connected. This generally doesn't happen but
          // technically could because they happen in separate
          // threads. Otherwise the link will be made in startTango().
+
          if (tangoConnected_ && cameraTextures_.get(cameraId) != textureName)
             tango_.connectTextureId(cameraId, textureName);
          cameraTextures_.put(cameraId, textureName);
@@ -125,8 +168,8 @@ public class MainActivity extends Activity
    }
 
    public Point getCameraFrameSize(int cameraId) {
-      TangoCameraIntrinsics intrinsics = tango_.getCameraIntrinsics(cameraId);
-      return new Point(intrinsics.width, intrinsics.height);
+      //TangoCameraIntrinsics intrinsics = tango_.getCameraIntrinsics(cameraId);
+      return new Point(640,480);
    }
 
    @Override
@@ -148,7 +191,11 @@ public class MainActivity extends Activity
 
    @Override
    public void onFrameAvailable(int i) {
-      view_.requestRender();
+      if (i == TangoCameraIntrinsics.TANGO_CAMERA_COLOR) {
+         // mColorCameraPreview.onFrameAvailable();
+         view_.requestRender();
+      }
+      //view_.requestRender();
    }
 
    @Override
@@ -159,8 +206,9 @@ public class MainActivity extends Activity
    private void startTango() {
       try {
          // Connect Tango.
-         tango_.connect(tangoConfig_);
+         //tango_.connect(tangoConfig_);
          tangoConnected_ = true;
+         Log.i("startTango", "Tango Connected");
 
          // Attach cameras to textures.
          synchronized(this) {

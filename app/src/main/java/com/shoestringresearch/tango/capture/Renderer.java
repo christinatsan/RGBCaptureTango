@@ -11,6 +11,7 @@ import android.opengl.GLES11Ext;
 import android.opengl.GLSurfaceView;
 import android.os.Environment;
 import android.widget.Toast;
+import android.util.Size;
 
 import com.google.atap.tangoservice.TangoCameraIntrinsics;
 
@@ -19,6 +20,7 @@ import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.util.concurrent.TimeUnit;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -59,7 +61,7 @@ class Renderer implements GLSurfaceView.Renderer {
    int videoTextureName_;
 
    int offscreenBuffer_;
-   Point offscreenSize_;
+   Point offscreenSize_ = new Point(640,480);
 
    volatile boolean saveNextFrame_;
 
@@ -69,6 +71,7 @@ class Renderer implements GLSurfaceView.Renderer {
 
    @Override
    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+
       glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 
       IntBuffer bufferNames = IntBuffer.allocate(1);
@@ -95,7 +98,9 @@ class Renderer implements GLSurfaceView.Renderer {
       glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, videoTextureName_);
 
       // Connect the texture to Tango.
+
       activity_.attachTexture(TangoCameraIntrinsics.TANGO_CAMERA_COLOR, videoTextureName_);
+      //activity_.attachTexture(1, videoTextureName_);
 
       // Prepare the shader program.
       videoProgram_ = createShaderProgram(videoVertexSource, videoFragmentSource);
@@ -109,7 +114,9 @@ class Renderer implements GLSurfaceView.Renderer {
               0);
 
       // Get the camera frame dimensions.
+      //May be deprecated??
       offscreenSize_ = activity_.getCameraFrameSize(TangoCameraIntrinsics.TANGO_CAMERA_COLOR);
+
 
       // Create an offscreen render target to capture a frame.
       IntBuffer renderbufferName = IntBuffer.allocate(1);
